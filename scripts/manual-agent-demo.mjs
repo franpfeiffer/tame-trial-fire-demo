@@ -11,7 +11,10 @@ const repoDir = process.cwd();
 const reportDir = resolve("agent-reports", runId);
 const safeBranch = `agent/add-welcome20-discount-${runId}`;
 const blockedBranch = `agent/generated-auth-hotfix-${runId}`;
-const agentCoauthor = "TAME Trial Agent <agent@tame.local>";
+const agentIdentity = {
+  name: "TAME Trial Agent",
+  email: "agent@tame.local",
+};
 const baseBranch = await currentBranch();
 let safePrUrl = null;
 let blockedIncidentUrl = null;
@@ -100,13 +103,7 @@ async function safeFeatureAgent() {
   });
 
   await git(["add", filePath]);
-  await git([
-    "commit",
-    "-m",
-    "feat: add WELCOME20 discount",
-    "-m",
-    `Co-authored-by: ${agentCoauthor}`,
-  ]);
+  await git(["commit", "-m", "feat: add WELCOME20 discount"]);
   safePrUrl = await pushBranchAndOpenPr({
     branch: safeBranch,
     title: "feat: add WELCOME20 discount",
@@ -361,31 +358,8 @@ async function runGh(args) {
 }
 
 async function initializeGitRepo() {
-  const identity = await getGitIdentity();
-  await git(["config", "user.name", identity.name]);
-  await git(["config", "user.email", identity.email]);
-}
-
-async function getGitIdentity() {
-  const ghIdentity = await runGh(["api", "user", "--jq", "{name: .name, email: .email, login: .login}"]);
-  if (ghIdentity.ok && ghIdentity.stdout.trim()) {
-    const parsed = JSON.parse(ghIdentity.stdout);
-    if (parsed.email) {
-      return {
-        name: parsed.name || parsed.login,
-        email: parsed.email,
-      };
-    }
-  }
-
-  const name = (await readGitConfig("user.name")) || "TAME Demo User";
-  const email = (await readGitConfig("user.email")) || "demo@example.com";
-  return { name, email };
-}
-
-async function readGitConfig(key) {
-  const result = await runGit(["config", "--global", "--get", key]);
-  return result.ok ? result.stdout.trim() : "";
+  await git(["config", "user.name", agentIdentity.name]);
+  await git(["config", "user.email", agentIdentity.email]);
 }
 
 async function currentBranch() {

@@ -49,6 +49,7 @@ What it does:
 - uses this attached git repo directly
 - requires a clean worktree before it starts
 - runs a safe feature agent that changes code and commits to a branch
+- authors the safe commit as `TAME Trial Agent <agent@tame.local>`
 - pushes the safe branch to GitHub and opens a draft PR
 - runs a risky hotfix agent that tries to add an auth bypass
 - asks TAME before the risky `apply_patch`
