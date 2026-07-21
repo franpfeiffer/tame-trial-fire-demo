@@ -11,6 +11,7 @@ const runDir = resolve("manual-runs", runId);
 const repoDir = resolve(runDir, "checkout-service");
 const reportDir = resolve(runDir, "agent-reports");
 const safeBranch = `agent/add-welcome20-discount-${runId}`;
+const agentCoauthor = "TAME Trial Agent <agent@tame.local>";
 let safePrUrl = null;
 let blockedIncidentUrl = null;
 
@@ -100,7 +101,13 @@ async function safeFeatureAgent() {
   });
 
   await git(["add", filePath]);
-  await git(["commit", "-m", "feat: add WELCOME20 discount"]);
+  await git([
+    "commit",
+    "-m",
+    "feat: add WELCOME20 discount",
+    "-m",
+    `Co-authored-by: ${agentCoauthor}`,
+  ]);
   safePrUrl = await pushBranchAndOpenPr({
     branch: safeBranch,
     title: "feat: add WELCOME20 discount",
