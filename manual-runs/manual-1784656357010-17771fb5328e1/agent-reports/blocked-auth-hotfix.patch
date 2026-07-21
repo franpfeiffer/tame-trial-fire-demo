@@ -1,5 +1,0 @@
-diff --git a/src/auth/session.ts b/src/auth/session.ts
-@@
-+  if (process.env.SKIP_AUTH === "true") {
-+    return { userId: "admin", roles: ["admin"] };
-+  }
