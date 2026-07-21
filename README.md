@@ -46,16 +46,17 @@ pnpm manual
 
 What it does:
 
-- creates a fresh git repo under `manual-runs/<run-id>/checkout-service`
+- uses this attached git repo directly
+- requires a clean worktree before it starts
 - runs a safe feature agent that changes code and commits to a branch
 - pushes the safe branch to GitHub and opens a draft PR
 - runs a risky hotfix agent that tries to add an auth bypass
 - asks TAME before the risky `apply_patch`
 - blocks the risky code before it touches `src/auth/session.ts`
-- writes PR-style reports under `manual-runs/<run-id>/agent-reports`
+- writes PR-style reports under `agent-reports/<run-id>`
 - leaves the blocked incident open so you can complete remediation manually in the TAME dashboard
 
-Set `TAME_TRIAL_GITHUB_REPO` in `.env` to choose where the draft PR is opened. The default is `franpfeiffer/tame-trial-fire-demo`. If the repo does not exist, the script creates it as a private repo.
+Set `TAME_TRIAL_GITHUB_REPO` in `.env` to match the GitHub repo attached to this directory. The default is `franpfeiffer/tame-trial-fire-demo`.
 
 If policies already exist, `pnpm setup` reuses them.
 
