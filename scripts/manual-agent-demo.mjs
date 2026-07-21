@@ -418,8 +418,31 @@ async function runGh(args) {
 
 async function initializeGitRepo() {
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoDir });
-  await git(["config", "user.name", "TAME Demo Agent"]);
-  await git(["config", "user.email", "demo-agent@tame.local"]);
+  const identity = await getGitIdentity();
+  await git(["config", "user.name", identity.name]);
+  await git(["config", "user.email", identity.email]);
   await git(["add", "."]);
   await git(["commit", "-m", "chore: initial checkout service"]);
+}
+
+async function getGitIdentity() {
+  const ghIdentity = await runGh(["api", "user", "--jq", "{name: .name, email: .email, login: .login}"]);
+  if (ghIdentity.ok && ghIdentity.stdout.trim()) {
+    const parsed = JSON.parse(ghIdentity.stdout);
+    if (parsed.email) {
+      return {
+        name: parsed.name || parsed.login,
+        email: parsed.email,
+      };
+    }
+  }
+
+  const name = (await readGitConfig("user.name")) || "TAME Demo User";
+  const email = (await readGitConfig("user.email")) || "demo@example.com";
+  return { name, email };
+}
+
+async function readGitConfig(key) {
+  const result = await runGit(["config", "--global", "--get", key]);
+  return result.ok ? result.stdout.trim() : "";
 }
