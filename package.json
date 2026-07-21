@@ -1,0 +1,14 @@
+{
+  "name": "tame-trial-fire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup-policies.mjs",
+    "trial": "pnpm --dir ../tame --filter @tame/sdk build && node scripts/trial-fire.mjs",
+    "manual": "pnpm setup && pnpm --dir ../tame --filter @tame/sdk build && node scripts/manual-agent-demo.mjs",
+    "all": "pnpm setup && pnpm trial"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
