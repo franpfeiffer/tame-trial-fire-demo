@@ -7,18 +7,17 @@ import { config } from "./env.mjs";
 
 const execFileAsync = promisify(execFile);
 const runId = `manual-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const runDir = resolve("manual-runs", runId);
-const repoDir = resolve(runDir, "checkout-service");
-const reportDir = resolve(runDir, "agent-reports");
+const repoDir = process.cwd();
+const reportDir = resolve("agent-reports", runId);
 const safeBranch = `agent/add-welcome20-discount-${runId}`;
+const blockedBranch = `agent/generated-auth-hotfix-${runId}`;
 const agentCoauthor = "TAME Trial Agent <agent@tame.local>";
+const baseBranch = await currentBranch();
 let safePrUrl = null;
 let blockedIncidentUrl = null;
 
 mkdirSync(reportDir, { recursive: true });
-bootstrapRepo();
-await initializeGitRepo();
-await ensureGitHubRemote();
+await assertCleanWorktree();
 
 const tame = new TameClient({
   apiKey: config.apiKey,
@@ -148,8 +147,8 @@ async function safeFeatureAgent() {
 }
 
 async function riskyHotfixAgent() {
-  await git(["checkout", "main"]);
-  await git(["checkout", "-b", "agent/generated-auth-hotfix"]);
+  await git(["checkout", baseBranch]);
+  await git(["checkout", "-b", blockedBranch]);
 
   const filePath = "src/auth/session.ts";
   const context = await tools.read_repository_file({ file_path: filePath });
@@ -192,7 +191,7 @@ async function riskyHotfixAgent() {
   try {
     await tools.apply_patch({
       repository: "checkout-service",
-      branch: "agent/generated-auth-hotfix",
+      branch: blockedBranch,
       file_path: filePath,
       patch_preview: patchPreview,
       replacement,
@@ -233,6 +232,8 @@ async function riskyHotfixAgent() {
     ].join("\n"),
   );
   blockedIncidentUrl = `${config.webUrl}/incidents/${blocked.incident_id}`;
+  await git(["checkout", baseBranch]);
+  await git(["branch", "-D", blockedBranch]);
 }
 
 async function printSummary() {
@@ -242,9 +243,9 @@ async function printSummary() {
   const blockedReport = relative(process.cwd(), resolve(reportDir, "blocked-auth-hotfix.md"));
 
   console.log("\nManual agent demo complete\n");
-  console.log(`Fresh repo: ${repoDir}`);
+  console.log(`Repo: ${repoDir}`);
   console.log("\nWhat happened:");
-  console.log("1. Safe feature agent created a branch and committed a real code change.");
+  console.log(`1. Safe feature agent branched from ${baseBranch} and committed a real code change.`);
   console.log("2. Safe feature agent pushed the branch and opened a draft GitHub PR.");
   console.log("3. Risky hotfix agent proposed an auth bypass.");
   console.log("4. TAME blocked apply_patch before src/auth/session.ts was modified.");
@@ -260,48 +261,6 @@ async function printSummary() {
   console.log("\nReports:");
   console.log(`- ${safeReport}`);
   console.log(`- ${blockedReport}`);
-}
-
-function bootstrapRepo() {
-  writeRepoFile("src/auth/session.ts", [
-    "export interface Session {",
-    "  userId: string;",
-    "  roles: string[];",
-    "}",
-    "",
-    "export function loadSession(token: string): Session {",
-    "  if (!verifyJwt(token)) {",
-    '    throw new Error("invalid token");',
-    "  }",
-    "",
-    "  return {",
-    '    userId: "user_123",',
-    '    roles: ["support"],',
-    "  };",
-    "}",
-    "",
-    "function verifyJwt(token: string): boolean {",
-    '  return token.startsWith("valid.");',
-    "}",
-    "",
-  ].join("\n"));
-  writeRepoFile("src/billing/discounts.ts", [
-    "export function calculateDiscount(coupon: string): number {",
-    '  if (coupon === "WELCOME10") {',
-    "    return 10;",
-    "  }",
-    "",
-    "  return 0;",
-    "}",
-    "",
-  ].join("\n"));
-  writeRepoFile("README.md", "# Checkout Service\n\nFake service used by the TAME manual agent demo.\n");
-}
-
-function writeRepoFile(path, content) {
-  const target = resolve(repoDir, path);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, content);
 }
 
 function writeReport(path, content) {
@@ -348,34 +307,12 @@ async function runGit(args) {
 }
 
 async function ensureGitHubRemote() {
-  await ensureGitHubRepoExists();
-  await git(["remote", "add", "origin", `git@github.com:${config.githubRepo}.git`]);
-  const fetchMain = await runGit(["fetch", "origin", "main"]);
-  if (fetchMain.ok) {
-    await git(["checkout", "-B", "main", "origin/main"]);
+  const remote = await runGit(["remote", "get-url", "origin"]);
+  if (remote.ok && remote.stdout.trim()) {
     return;
   }
 
-  await git(["push", "-u", "origin", "main"]);
-}
-
-async function ensureGitHubRepoExists() {
-  const view = await runGh(["repo", "view", config.githubRepo, "--json", "nameWithOwner"]);
-  if (view.ok) {
-    return;
-  }
-
-  const create = await runGh([
-    "repo",
-    "create",
-    config.githubRepo,
-    "--private",
-    "--description",
-    "Disposable repo for the TAME manual agent PR demo",
-  ]);
-  if (!create.ok) {
-    throw new Error(`Could not create GitHub repo ${config.githubRepo}: ${create.stderr}`);
-  }
+  throw new Error("This repo needs an origin remote before the manual demo can push a PR.");
 }
 
 async function pushBranchAndOpenPr({ branch, title, body }) {
@@ -389,7 +326,7 @@ async function pushBranchAndOpenPr({ branch, title, body }) {
     "--repo",
     config.githubRepo,
     "--base",
-    "main",
+    baseBranch,
     "--head",
     branch,
     "--draft",
@@ -424,12 +361,9 @@ async function runGh(args) {
 }
 
 async function initializeGitRepo() {
-  await execFileAsync("git", ["init", "-b", "main"], { cwd: repoDir });
   const identity = await getGitIdentity();
   await git(["config", "user.name", identity.name]);
   await git(["config", "user.email", identity.email]);
-  await git(["add", "."]);
-  await git(["commit", "-m", "chore: initial checkout service"]);
 }
 
 async function getGitIdentity() {
@@ -452,4 +386,22 @@ async function getGitIdentity() {
 async function readGitConfig(key) {
   const result = await runGit(["config", "--global", "--get", key]);
   return result.ok ? result.stdout.trim() : "";
+}
+
+async function currentBranch() {
+  const branch = await gitOutput(["branch", "--show-current"]);
+  const trimmed = branch.trim();
+  if (!trimmed) {
+    throw new Error("Manual demo requires a named git branch.");
+  }
+  return trimmed;
+}
+
+async function assertCleanWorktree() {
+  await ensureGitHubRemote();
+  await initializeGitRepo();
+  const status = await gitOutput(["status", "--short"]);
+  if (status.trim()) {
+    throw new Error(`Manual demo requires a clean worktree before it edits the attached repo:\n${status}`);
+  }
 }
