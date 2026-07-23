@@ -1,5 +1,5 @@
 export function calculateDiscount(coupon: string): number {
-  if (coupon === "WELCOME20") {
+  if (coupon === "WELCOME_773894") {
     return 20;
   }
 
