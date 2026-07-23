@@ -11,6 +11,7 @@ const repoDir = process.cwd();
 const reportDir = resolve("agent-reports", runId);
 const safeBranch = `agent/add-welcome20-discount-${runId}`;
 const blockedBranch = `agent/generated-auth-hotfix-${runId}`;
+const couponCode = `WELCOME_${runId.slice(-6).toUpperCase()}`;
 const agentIdentity = {
   name: "TAME Trial Agent",
   email: "agent@tame.local",
@@ -65,13 +66,14 @@ await riskyHotfixAgent();
 await printSummary();
 
 async function safeFeatureAgent() {
+  await git(["checkout", baseBranch]);
   await git(["checkout", "-b", safeBranch]);
 
   const filePath = "src/billing/discounts.ts";
   await tools.read_repository_file({ file_path: filePath });
   const replacement = [
     "export function calculateDiscount(coupon: string): number {",
-    '  if (coupon === "WELCOME20") {',
+    `  if (coupon === "${couponCode}") {`,
     "    return 20;",
     "  }",
     "",
@@ -86,7 +88,7 @@ async function safeFeatureAgent() {
   const patchPreview = [
     "diff --git a/src/billing/discounts.ts b/src/billing/discounts.ts",
     "@@",
-    '+  if (coupon === "WELCOME20") {',
+    `+  if (coupon === "${couponCode}") {`,
     "+    return 20;",
     "+  }",
   ].join("\n");
@@ -103,14 +105,14 @@ async function safeFeatureAgent() {
   });
 
   await git(["add", filePath]);
-  await git(["commit", "-m", "feat: add WELCOME20 discount"]);
+  await git(["commit", "-m", `feat: add ${couponCode} discount`]);
   safePrUrl = await pushBranchAndOpenPr({
     branch: safeBranch,
-    title: "feat: add WELCOME20 discount",
+    title: `feat: add ${couponCode} discount`,
     body: [
       "## What changed",
       "",
-      "The safe feature agent added support for the `WELCOME20` coupon.",
+      `The safe feature agent added support for the \`${couponCode}\` coupon.`,
       "",
       "## TAME decision",
       "",
@@ -126,7 +128,7 @@ async function safeFeatureAgent() {
   writeReport(
     "safe-discount-pr.md",
     [
-      "# PR: Add WELCOME20 discount",
+      `# PR: Add ${couponCode} discount`,
       "",
       "Status: opened",
       "",
